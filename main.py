@@ -21,7 +21,8 @@ class MyWidget(QWidget):
             i = 2
         self.comboBox.setCurrentIndex(i)
         self.comboBox.activated[str].connect(self.choice)
-        self.pushButton.clicked.connect(self.search)
+        self.pushButton_search.clicked.connect(self.search)
+        self.pushButton_reset.clicked.connect(self.reset)
         self.show()
 
     def choice(self, text):
@@ -40,14 +41,20 @@ class MyWidget(QWidget):
 
     def search(self):
         global point_coord, flagNeeded, map_center_coord
-        point_coord = get_pharmacy_coordinates(self.lineEdit.text(), map_center_coord)
+        get_coordinates(self.lineEdit.text())
         map_center_coord = deepcopy(point_coord)
         flagNeeded = True
         self.close()
 
+    def reset(self):
+        global flagNeeded
+
+        flagNeeded = False
+        self.close()
+
 
 def draw_map():
-    global map_file, isChanged
+    global map_file, isChanged, flagNeeded
 
     api_server = "http://static-maps.yandex.ru/1.x/"
     params = {'ll': ','.join(map(str, map_center_coord)),
@@ -88,31 +95,46 @@ def get_adjacency_from_z():
     return n
 
 
-def get_pharmacy_coordinates(text, coodrs):
-    search_api_server = "https://search-maps.yandex.ru/v1/"
-    api_key = "0e9e3c8a-0504-4663-ba95-2c1ebb146bd4"
+def get_ll_spn(toponym):
+    lclon, lclat = toponym['boundedBy']['Envelope']['lowerCorner'].split()
+    uclon, uclat = toponym['boundedBy']['Envelope']['upperCorner'].split()
+    lclon, lclat = float(lclon), float(lclat)
+    uclon, uclat = float(uclon), float(uclat)
+    d_lon = uclon - lclon
+    d_lat = uclat - lclat
+    if d_lon > d_lat:
+        spn = f'{d_lon},{d_lon}'
+    else:
+        spn = f'{d_lat},{d_lat}'
+    ll = ','.join(toponym['Point']['pos'].split())
+    return ll, spn
 
-    address_ll = ','.join(map(str, coodrs))
 
-    search_params = {
-        "apikey": api_key,
-        "text": text,
-        "lang": "ru_RU",
-        "ll": address_ll,
-        "type": "biz"
-    }
+def get_coordinates(text):
+    global point_coord, isChanged
 
-    response = requests.get(search_api_server, params=search_params)
+    geocoder_url = "http://geocode-maps.yandex.ru/1.x/"
+    response = requests.get(geocoder_url, params={
+        "apikey": "40d1649f-0493-4b70-98ba-98533de7710b",
+        "format": "json",
+        "geocode": text
+    })
 
-    json_response = response.json()
+    if not response:
+        return
 
-    if 'features' not in json_response or not bool(json_response["features"]):
-        return coodrs
+    if response.json()['response']["GeoObjectCollection"][
+        'metaDataProperty']['GeocoderResponseMetaData'][
+        'found'] == '0':
+        return
 
-    organization = json_response["features"][0]
-
-    point = organization["geometry"]["coordinates"]
-    return point
+    toponym = response.json()["response"]["GeoObjectCollection"][
+        "featureMember"][0]["GeoObject"]
+    print(toponym)
+    ll, spn = get_ll_spn(toponym)
+    print(ll)
+    point_coord = list(map(float, ll.split(',')))
+    print(point_coord)
 
 
 point_coord = [56.229420, 58.010577]
