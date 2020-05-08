@@ -10,6 +10,8 @@ from PyQt5.QtWidgets import QApplication, QWidget
 
 class MyWidget(QWidget):
     def __init__(self, type):
+        global toponym_index
+
         super().__init__()
         uic.loadUi('widget.ui', self)
         self.types = ['схема', "спутник", "гибрид"]
@@ -23,6 +25,9 @@ class MyWidget(QWidget):
         self.comboBox.activated[str].connect(self.choice)
         self.pushButton_search.clicked.connect(self.search)
         self.pushButton_reset.clicked.connect(self.reset)
+        if toponym_index:
+            self.radioButton_index.setChecked(True)
+        self.radioButton_index.toggled.connect(self.index)
         self.show()
 
     def choice(self, text):
@@ -53,12 +58,23 @@ class MyWidget(QWidget):
         toponym = None
         self.close()
 
+    def index(self):
+        global toponym_index
+
+        if self.radioButton_index.isChecked():
+            toponym_index = True
+        else:
+            toponym_index = False
+
 
 def draw_map():
-    global map_file, isChanged, flagNeeded, address
+    global map_file, isChanged, flagNeeded, toponym_index, toponym
 
     api_server = "http://static-maps.yandex.ru/1.x/"
-    params = {'ll': ','.join(map(str, map_center_coord)),
+
+    coords = ','.join(map(str, map_center_coord))
+
+    params = {'ll': coords,
               'z': z,
               'l': type}
 
@@ -79,6 +95,15 @@ def draw_map():
     screen.blit(pygame.image.load(map_file), (0, 0))
     if toponym:
         address = toponym['metaDataProperty']['GeocoderMetaData']['text']
+        if toponym_index:
+
+            try:
+                index = toponym["metaDataProperty"]["GeocoderMetaData"]["Address"]["postal_code"]
+            except KeyError:
+                index = 'отсутствует'
+
+            address += f'   Индекс: {index}'
+
         screen.fill(pygame.Color('red'), pygame.Rect(0, 0, 600, 50))
         font = pygame.font.Font(None, 20)
         text = font.render(address, 1, (255, 255, 255))
@@ -118,7 +143,7 @@ def get_ll_spn(toponym):
 
 
 def get_coordinates(text):
-    global point_coord, isChanged, address, toponym
+    global point_coord, isChanged, toponym
 
     geocoder_url = "http://geocode-maps.yandex.ru/1.x/"
     response = requests.get(geocoder_url, params={
@@ -138,13 +163,8 @@ def get_coordinates(text):
     toponym = response.json()["response"]["GeoObjectCollection"][
         "featureMember"][0]["GeoObject"]
 
-    # address = toponym['metaDataProperty']['GeocoderMetaData']['text']
-
-    print(toponym)
     ll, spn = get_ll_spn(toponym)
-    print(ll)
     point_coord = list(map(float, ll.split(',')))
-    print(point_coord)
 
 
 point_coord = [56.229420, 58.010577]
@@ -155,6 +175,7 @@ pygame.init()
 isChanged = True
 flagNeeded = False
 toponym = None
+toponym_index = False
 pygame.key.set_repeat(70, 70)
 while True:
     for event in pygame.event.get():
