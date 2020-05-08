@@ -6,7 +6,7 @@ import requests
 
 
 def draw_map():
-    global map_file, change
+    global map_file
 
     api_server = "http://static-maps.yandex.ru/1.x/"
     params = {'ll': ','.join(map(str, coord)),
@@ -37,6 +37,17 @@ while True:
         if event.type == pygame.QUIT:
             os.remove(map_file)
             sys.exit(0)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_PAGEDOWN:
+                z -= 1
+                if z < 0:
+                    z = 1
+                change = True
+            if event.key == pygame.K_PAGEUP:
+                z += 1
+                if z > 17:
+                    z = 17
+                change = True
     if change:
         draw_map()
     pygame.display.flip()
