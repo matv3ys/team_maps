@@ -111,6 +111,23 @@ def draw_map():
     isChanged = False
 
 
+def search_toponym(position):
+    global z, point_coord, map_center_coord, flagNeeded
+
+    step_y = 181.65 / 2 ** (z - 1)
+    step_x = 416.26 / 2 ** (z - 1)
+
+    x, y = position
+    xt, yt = point_coord[0] - (300 - x) * step_x / 600, point_coord[1] + (225 - y) * step_y / 450
+
+    text = ','.join(list(map(str, [xt, yt])))
+
+    get_coordinates(text)
+    map_center_coord = deepcopy(point_coord)
+    flagNeeded = True
+    isChanged = True
+
+
 def open_settings():
     global isChanged, type
     app = QApplication(sys.argv)
@@ -212,6 +229,11 @@ while True:
                 isChanged = True
             if event.key == pygame.K_s and pygame.key.get_mods() & pygame.KMOD_CTRL:
                 open_settings()
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == pygame.BUTTON_LEFT:
+                search_toponym(event.pos)
+                isChanged = True
 
     if isChanged:
         draw_map()
