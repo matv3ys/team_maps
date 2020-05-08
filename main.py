@@ -4,10 +4,8 @@ import sys
 import pygame
 import requests
 
-from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget
-
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import uic
+from PyQt5.QtWidgets import QApplication, QWidget
 
 
 class MyWidget(QWidget):
