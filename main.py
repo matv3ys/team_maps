@@ -1,9 +1,9 @@
 import os
 import sys
+from copy import deepcopy
 
 import pygame
 import requests
-
 from PyQt5 import uic
 from PyQt5.QtWidgets import QApplication, QWidget
 
@@ -21,6 +21,7 @@ class MyWidget(QWidget):
             i = 2
         self.comboBox.setCurrentIndex(i)
         self.comboBox.activated[str].connect(self.choice)
+        self.pushButton.clicked.connect(self.search)
         self.show()
 
     def choice(self, text):
@@ -37,14 +38,24 @@ class MyWidget(QWidget):
             type = 'sat,skl'
         self.close()
 
+    def search(self):
+        global point_coord, flagNeeded, map_center_coord
+        point_coord = get_pharmacy_coordinates(self.lineEdit.text(), map_center_coord)
+        map_center_coord = deepcopy(point_coord)
+        flagNeeded = True
+        self.close()
+
 
 def draw_map():
-    global map_file, change
+    global map_file, isChanged
 
     api_server = "http://static-maps.yandex.ru/1.x/"
-    params = {'ll': ','.join(map(str, coord)),
+    params = {'ll': ','.join(map(str, map_center_coord)),
               'z': z,
               'l': type}
+
+    if flagNeeded:
+        params['pt'] = f'{",".join(map(str, point_coord))},pm2bll'
 
     response = requests.get(api_server, params=params)
 
@@ -58,23 +69,60 @@ def draw_map():
         file.write(response.content)
     screen = pygame.display.set_mode((600, 450))
     screen.blit(pygame.image.load(map_file), (0, 0))
-    change = False
+    isChanged = False
 
 
 def open_settings():
-    global change, type
+    global isChanged, type
     app = QApplication(sys.argv)
     ex = MyWidget(type)
     app.exec_()
     del ex
-    change = True
+    isChanged = True
 
 
-coord = [56.229420, 58.010577]
+def get_adjacency_from_z():
+    n = 0.001
+    for _ in range(17 - z):
+        n *= 1.7084507042253522
+    return n
+
+
+def get_pharmacy_coordinates(text, coodrs):
+    search_api_server = "https://search-maps.yandex.ru/v1/"
+    api_key = "0e9e3c8a-0504-4663-ba95-2c1ebb146bd4"
+
+    address_ll = ','.join(map(str, coodrs))
+
+    search_params = {
+        "apikey": api_key,
+        "text": text,
+        "lang": "ru_RU",
+        "ll": address_ll,
+        "type": "biz"
+    }
+
+    response = requests.get(search_api_server, params=search_params)
+
+    json_response = response.json()
+
+    if 'features' not in json_response or not bool(json_response["features"]):
+        return coodrs
+
+    organization = json_response["features"][0]
+
+    point = organization["geometry"]["coordinates"]
+    return point
+
+
+point_coord = [56.229420, 58.010577]
+map_center_coord = [56.229420, 58.010577]
 z = 10
 type = 'sat'
 pygame.init()
-change = True
+isChanged = True
+flagNeeded = False
+pygame.key.set_repeat(70, 70)
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -85,14 +133,32 @@ while True:
                 z -= 1
                 if z < 0:
                     z = 1
-                change = True
+                isChanged = True
             if event.key == pygame.K_PAGEUP:
                 z += 1
                 if z > 17:
                     z = 17
-                change = True
+                isChanged = True
+
+            if event.key == 273:
+                if map_center_coord[0] + get_adjacency_from_z() < 90:
+                    map_center_coord[1] += get_adjacency_from_z()
+                isChanged = True
+            if event.key == 274:
+                if map_center_coord[0] + get_adjacency_from_z() > 0:
+                    map_center_coord[1] -= get_adjacency_from_z()
+                isChanged = True
+            if event.key == 275:
+                if map_center_coord[0] + get_adjacency_from_z() < 180:
+                    map_center_coord[0] += get_adjacency_from_z()
+                isChanged = True
+            if event.key == 276:
+                if map_center_coord[0] - get_adjacency_from_z() > 0:
+                    map_center_coord[0] -= get_adjacency_from_z()
+                isChanged = True
             if event.key == pygame.K_s and pygame.key.get_mods() & pygame.KMOD_CTRL:
                 open_settings()
-    if change:
+
+    if isChanged:
         draw_map()
     pygame.display.flip()
