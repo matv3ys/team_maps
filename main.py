@@ -47,14 +47,15 @@ class MyWidget(QWidget):
         self.close()
 
     def reset(self):
-        global flagNeeded
+        global flagNeeded, toponym
 
         flagNeeded = False
+        toponym = None
         self.close()
 
 
 def draw_map():
-    global map_file, isChanged, flagNeeded
+    global map_file, isChanged, flagNeeded, address
 
     api_server = "http://static-maps.yandex.ru/1.x/"
     params = {'ll': ','.join(map(str, map_center_coord)),
@@ -76,6 +77,12 @@ def draw_map():
         file.write(response.content)
     screen = pygame.display.set_mode((600, 450))
     screen.blit(pygame.image.load(map_file), (0, 0))
+    if toponym:
+        address = toponym['metaDataProperty']['GeocoderMetaData']['text']
+        screen.fill(pygame.Color('red'), pygame.Rect(0, 0, 600, 50))
+        font = pygame.font.Font(None, 20)
+        text = font.render(address, 1, (255, 255, 255))
+        screen.blit(text, (15, 10))
     isChanged = False
 
 
@@ -111,7 +118,7 @@ def get_ll_spn(toponym):
 
 
 def get_coordinates(text):
-    global point_coord, isChanged
+    global point_coord, isChanged, address, toponym
 
     geocoder_url = "http://geocode-maps.yandex.ru/1.x/"
     response = requests.get(geocoder_url, params={
@@ -130,6 +137,9 @@ def get_coordinates(text):
 
     toponym = response.json()["response"]["GeoObjectCollection"][
         "featureMember"][0]["GeoObject"]
+
+    # address = toponym['metaDataProperty']['GeocoderMetaData']['text']
+
     print(toponym)
     ll, spn = get_ll_spn(toponym)
     print(ll)
@@ -144,6 +154,7 @@ type = 'sat'
 pygame.init()
 isChanged = True
 flagNeeded = False
+toponym = None
 pygame.key.set_repeat(70, 70)
 while True:
     for event in pygame.event.get():
