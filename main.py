@@ -96,36 +96,42 @@ def draw_map():
     if toponym:
         address = toponym['metaDataProperty']['GeocoderMetaData']['text']
         if toponym_index:
-
             try:
                 index = toponym["metaDataProperty"]["GeocoderMetaData"]["Address"]["postal_code"]
             except KeyError:
                 index = 'отсутствует'
 
-            address += f'   Индекс: {index}'
+            address += f'\tИндекс: {index}'
 
         screen.fill(pygame.Color('red'), pygame.Rect(0, 0, 600, 50))
         font = pygame.font.Font(None, 20)
         text = font.render(address, 1, (255, 255, 255))
         screen.blit(text, (15, 10))
+        if mode == 'organization':
+            org = f'Организация: {org_name}'
+            text = font.render(org, 1, (255, 255, 255))
+            screen.blit(text, (15, 30))
     isChanged = False
 
 
 def search_toponym(position):
-    global z, point_coord, map_center_coord, flagNeeded
+    global z, point_coord, map_center_coord, flagNeeded, mode
 
     step_y = 181.65 / 2 ** (z - 1)
     step_x = 416.26 / 2 ** (z - 1)
 
     x, y = position
-    xt, yt = point_coord[0] - (300 - x) * step_x / 600, point_coord[1] + (225 - y) * step_y / 450
+    xt, yt = map_center_coord[0] - (300 - x) * step_x / 600, \
+             map_center_coord[1] + (225 - y) * step_y / 450
 
     text = ','.join(list(map(str, [xt, yt])))
 
-    get_coordinates(text)
-    map_center_coord = deepcopy(point_coord)
+    if mode == 'geocode':
+        get_coordinates(text)
+    elif mode == 'organization':
+        get_organization_coordinates(text)
+
     flagNeeded = True
-    isChanged = True
 
 
 def open_settings():
@@ -184,6 +190,41 @@ def get_coordinates(text):
     point_coord = list(map(float, ll.split(',')))
 
 
+def get_organization_coordinates(text):
+    global point_coord, toponym, org_name
+
+    get_coordinates(text)
+
+    address = toponym['metaDataProperty']['GeocoderMetaData']['text']
+
+    search_api_server = "https://search-maps.yandex.ru/v1/"
+    api_key = "0e9e3c8a-0504-4663-ba95-2c1ebb146bd4"
+
+    search_params = {
+        "apikey": api_key,
+        "text": address,
+        "lang": "ru_RU",
+        "type": "biz",
+        "ll": text,
+        "spn": '0.00044990383305613414,0.00044990383305613414',
+        "rspn": 1
+    }
+
+    response = requests.get(search_api_server, params=search_params)
+
+    json_response = response.json()
+
+    if 'features' not in json_response or not bool(json_response["features"]):
+        org_name = ''
+        return
+
+    organization = json_response["features"][0]
+
+    org_name = organization["properties"]["name"]
+
+    point_coord = organization["geometry"]["coordinates"]
+
+
 point_coord = [56.229420, 58.010577]
 map_center_coord = [56.229420, 58.010577]
 z = 10
@@ -192,7 +233,9 @@ pygame.init()
 isChanged = True
 flagNeeded = False
 toponym = None
+org_name = ''
 toponym_index = False
+mode = 'geocode'
 pygame.key.set_repeat(70, 70)
 while True:
     for event in pygame.event.get():
@@ -232,6 +275,11 @@ while True:
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == pygame.BUTTON_LEFT:
+                mode = 'geocode'
+                search_toponym(event.pos)
+                isChanged = True
+            if event.button == pygame.BUTTON_RIGHT:
+                mode = 'organization'
                 search_toponym(event.pos)
                 isChanged = True
 
